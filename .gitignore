@@ -14,7 +14,7 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# Cache directory
+nsert# Cache directory
 cache/
 *.png
 
@@ -53,4 +53,4 @@ build/
 <<<<<<< HEAD
 
 # test files
-test-railway-db.js
+*test-railway-db.js
