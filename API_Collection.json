@@ -1,0 +1,221 @@
+{
+  "info": {
+    "name": "Country Currency API",
+    "description": "Complete API collection for Country Currency & Exchange API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/",
+          "host": ["{{baseUrl}}"],
+          "path": [""]
+        },
+        "description": "Check if the API is running"
+      }
+    },
+    {
+      "name": "Refresh Countries Data",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/countries/refresh",
+          "host": ["{{baseUrl}}"],
+          "path": ["countries", "refresh"]
+        },
+        "description": "Fetch fresh data from external APIs and update database"
+      }
+    },
+    {
+      "name": "Get All Countries",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/countries",
+          "host": ["{{baseUrl}}"],
+          "path": ["countries"]
+        },
+        "description": "Get all countries from database"
+      }
+    },
+    {
+      "name": "Get Countries - Filter by Region",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/countries?region=Africa",
+          "host": ["{{baseUrl}}"],
+          "path": ["countries"],
+          "query": [
+            {
+              "key": "region",
+              "value": "Africa",
+              "description": "Filter by region (Africa, Europe, Asia, Americas, Oceania)"
+            }
+          ]
+        },
+        "description": "Get countries filtered by region"
+      }
+    },
+    {
+      "name": "Get Countries - Filter by Currency",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/countries?currency=NGN",
+          "host": ["{{baseUrl}}"],
+          "path": ["countries"],
+          "query": [
+            {
+              "key": "currency",
+              "value": "NGN",
+              "description": "Filter by currency code (NGN, USD, EUR, GBP, etc.)"
+            }
+          ]
+        },
+        "description": "Get countries filtered by currency code"
+      }
+    },
+    {
+      "name": "Get Countries - Sort by GDP (Descending)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/countries?sort=gdp_desc",
+          "host": ["{{baseUrl}}"],
+          "path": ["countries"],
+          "query": [
+            {
+              "key": "sort",
+              "value": "gdp_desc",
+              "description": "Sort options: gdp_desc, gdp_asc, population_desc, population_asc"
+            }
+          ]
+        },
+        "description": "Get countries sorted by estimated GDP (highest first)"
+      }
+    },
+    {
+      "name": "Get Countries - Combined Filters",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/countries?region=Africa&sort=gdp_desc",
+          "host": ["{{baseUrl}}"],
+          "path": ["countries"],
+          "query": [
+            {
+              "key": "region",
+              "value": "Africa"
+            },
+            {
+              "key": "sort",
+              "value": "gdp_desc"
+            }
+          ]
+        },
+        "description": "Get African countries sorted by GDP"
+      }
+    },
+    {
+      "name": "Get Country by Name - Nigeria",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/countries/Nigeria",
+          "host": ["{{baseUrl}}"],
+          "path": ["countries", "Nigeria"]
+        },
+        "description": "Get a specific country by name (case-insensitive)"
+      }
+    },
+    {
+      "name": "Get Country by Name - Ghana",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/countries/Ghana",
+          "host": ["{{baseUrl}}"],
+          "path": ["countries", "Ghana"]
+        },
+        "description": "Get Ghana's details"
+      }
+    },
+    {
+      "name": "Get Country - Not Found (404)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/countries/NonExistentCountry",
+          "host": ["{{baseUrl}}"],
+          "path": ["countries", "NonExistentCountry"]
+        },
+        "description": "Test 404 error for non-existent country"
+      }
+    },
+    {
+      "name": "Get API Status",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/status",
+          "host": ["{{baseUrl}}"],
+          "path": ["status"]
+        },
+        "description": "Get total countries and last refresh timestamp"
+      }
+    },
+    {
+      "name": "Get Summary Image",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/countries/image",
+          "host": ["{{baseUrl}}"],
+          "path": ["countries", "image"]
+        },
+        "description": "Download the generated summary image (PNG)"
+      }
+    },
+    {
+      "name": "Delete Country",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/countries/TestCountry",
+          "host": ["{{baseUrl}}"],
+          "path": ["countries", "TestCountry"]
+        },
+        "description": "Delete a country by name (use with caution)"
+      }
+    }
+  ]
+        }
