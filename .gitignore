@@ -50,6 +50,7 @@ build/
 
 # PM2
 .pm2/
+<<<<<<< HEAD
 
 # test files
 test-railway-db.js
