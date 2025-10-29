@@ -53,4 +53,4 @@ build/
 <<<<<<< HEAD
 
 # test files
-*test-railway-db.js
+test-railway-db.js
