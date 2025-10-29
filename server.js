@@ -9,21 +9,70 @@ const path = require('path');
 const app = express();
 app.use(express.json());
 
-// Database connection pool
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'countries_db',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
+// Smart database configuration for Railway and local development
+let dbConfig;
 
-// Initialize database
+if (process.env.MYSQL_URL || process.env.DATABASE_URL) {
+  // Railway or other cloud platforms with connection URL
+  const dbUrl = process.env.MYSQL_URL || process.env.DATABASE_URL;
+  
+  try {
+    const url = new URL(dbUrl);
+    dbConfig = {
+      host: url.hostname,
+      user: url.username,
+      password: url.password,
+      database: url.pathname.slice(1) || 'railway',
+      port: parseInt(url.port) || 3306,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      connectTimeout: 60000
+    };
+    console.log(`📡 Connecting to cloud database at ${url.hostname}:${url.port}`);
+  } catch (error) {
+    console.error('❌ Failed to parse database URL:', error.message);
+    process.exit(1);
+  }
+} else {
+  // Local development with individual environment variables
+  dbConfig = {
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'countries_db',
+    port: parseInt(process.env.DB_PORT) || 3306,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+  };
+  console.log(`💻 Connecting to local database at ${dbConfig.host}:${dbConfig.port}`);
+}
+
+// Create connection pool
+const pool = mysql.createPool(dbConfig);
+
+// Test database connection
+async function testConnection() {
+  try {
+    const connection = await pool.getConnection();
+    await connection.query('SELECT 1');
+    console.log('✅ Database connection successful!');
+    connection.release();
+    return true;
+  } catch (error) {
+    console.error('❌ Database connection failed:', error.message);
+    return false;
+  }
+}
+
+// Initialize database tables
 async function initDatabase() {
   const connection = await pool.getConnection();
   try {
+    console.log('🔧 Initializing database tables...');
+    
+    // Create countries table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS countries (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -42,6 +91,7 @@ async function initDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
+    // Create refresh status table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS refresh_status (
         id INT PRIMARY KEY DEFAULT 1,
@@ -51,11 +101,15 @@ async function initDatabase() {
       )
     `);
 
+    // Initialize refresh status
     await connection.query(`
       INSERT IGNORE INTO refresh_status (id) VALUES (1)
     `);
 
-    console.log('Database initialized successfully');
+    console.log('✅ Database tables initialized successfully');
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error.message);
+    throw error;
   } finally {
     connection.release();
   }
@@ -71,8 +125,11 @@ async function generateSummaryImage(totalCountries, topCountries, timestamp) {
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // Background
-    ctx.fillStyle = '#1a1a2e';
+    // Background gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#1a1a2e');
+    gradient.addColorStop(1, '#16213e');
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
     // Title
@@ -114,9 +171,9 @@ async function generateSummaryImage(totalCountries, topCountries, timestamp) {
     const buffer = canvas.toBuffer('image/png');
     await fs.writeFile(path.join('cache', 'summary.png'), buffer);
     
-    console.log('Summary image generated successfully');
+    console.log('📊 Summary image generated successfully');
   } catch (error) {
-    console.error('Error generating summary image:', error);
+    console.error('❌ Error generating summary image:', error.message);
   }
 }
 
@@ -126,8 +183,10 @@ app.post('/countries/refresh', async (req, res) => {
   
   try {
     await connection.beginTransaction();
+    console.log('🔄 Starting data refresh...');
 
-    // Fetch countries data
+    // Fetch countries data with timeout
+    console.log('📥 Fetching countries data...');
     const countriesResponse = await axios.get(
       'https://restcountries.com/v2/all?fields=name,capital,region,population,flag,currencies',
       { timeout: 30000 }
@@ -135,7 +194,8 @@ app.post('/countries/refresh', async (req, res) => {
       throw new Error('Could not fetch data from restcountries.com');
     });
 
-    // Fetch exchange rates
+    // Fetch exchange rates with timeout
+    console.log('💱 Fetching exchange rates...');
     const exchangeResponse = await axios.get(
       'https://open.er-api.com/v6/latest/USD',
       { timeout: 30000 }
@@ -145,6 +205,8 @@ app.post('/countries/refresh', async (req, res) => {
 
     const exchangeRates = exchangeResponse.data.rates;
     const countries = countriesResponse.data;
+
+    console.log(`📊 Processing ${countries.length} countries...`);
 
     for (const country of countries) {
       const name = country.name;
@@ -170,7 +232,7 @@ app.post('/countries/refresh', async (req, res) => {
         }
       }
 
-      // Upsert country
+      // Upsert country (insert or update if exists)
       await connection.query(`
         INSERT INTO countries (name, capital, region, population, currency_code, exchange_rate, estimated_gdp, flag_url, last_refreshed_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
@@ -195,8 +257,10 @@ app.post('/countries/refresh', async (req, res) => {
     `, [totalCountries]);
 
     await connection.commit();
+    console.log('✅ Data refresh completed successfully');
 
     // Generate summary image
+    console.log('🎨 Generating summary image...');
     const [topCountries] = await connection.query(`
       SELECT name, estimated_gdp FROM countries
       WHERE estimated_gdp IS NOT NULL
@@ -215,7 +279,7 @@ app.post('/countries/refresh', async (req, res) => {
 
   } catch (error) {
     await connection.rollback();
-    console.error('Refresh error:', error);
+    console.error('❌ Refresh error:', error.message);
     
     if (error.message.includes('Could not fetch data')) {
       return res.status(503).json({
@@ -275,7 +339,7 @@ app.get('/countries', async (req, res) => {
       last_refreshed_at: c.last_refreshed_at
     })));
   } catch (error) {
-    console.error('Get countries error:', error);
+    console.error('❌ Get countries error:', error.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -306,7 +370,7 @@ app.get('/countries/:name', async (req, res) => {
       last_refreshed_at: c.last_refreshed_at
     });
   } catch (error) {
-    console.error('Get country error:', error);
+    console.error('❌ Get country error:', error.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -325,7 +389,7 @@ app.delete('/countries/:name', async (req, res) => {
 
     res.json({ message: 'Country deleted successfully' });
   } catch (error) {
-    console.error('Delete country error:', error);
+    console.error('❌ Delete country error:', error.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -347,7 +411,7 @@ app.get('/status', async (req, res) => {
       last_refreshed_at: result[0].last_refreshed_at
     });
   } catch (error) {
-    console.error('Status error:', error);
+    console.error('❌ Status error:', error.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -363,19 +427,67 @@ app.get('/countries/image', async (req, res) => {
   }
 });
 
-// Health check
+// Health check endpoint
 app.get('/', (req, res) => {
-  res.json({ message: 'Country Currency & Exchange API is running' });
+  res.json({ 
+    message: 'Country Currency & Exchange API is running',
+    status: 'healthy',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 404 handler for undefined routes
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('❌ Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // Start server
 const PORT = process.env.PORT || 3000;
 
-initDatabase().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-}).catch(err => {
-  console.error('Failed to initialize database:', err);
-  process.exit(1);
+async function startServer() {
+  try {
+    // Test database connection
+    const isConnected = await testConnection();
+    if (!isConnected) {
+      throw new Error('Database connection failed');
+    }
+
+    // Initialize database tables
+    await initDatabase();
+
+    // Start Express server
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log('════════════════════════════════════════');
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🌐 Health check: http://localhost:${PORT}/`);
+      console.log('════════════════════════════════════════');
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error.message);
+    console.error('💡 Please check your database configuration');
+    process.exit(1);
+  }
+}
+
+// Handle graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('⚠️  SIGTERM received, closing server gracefully...');
+  await pool.end();
+  process.exit(0);
 });
+
+process.on('SIGINT', async () => {
+  console.log('⚠️  SIGINT received, closing server gracefully...');
+  await pool.end();
+  process.exit(0);
+});
+
+// Start the server
+startServer();
